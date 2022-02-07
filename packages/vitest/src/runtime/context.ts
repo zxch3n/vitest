@@ -1,3 +1,4 @@
+import process from 'process'
 import type { Awaitable, DoneCallback, RuntimeContext, SuiteCollector, TestFunction } from '../types'
 
 export const context: RuntimeContext = {

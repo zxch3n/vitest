@@ -1,35 +1,26 @@
+import vm from 'vm'
 import { importModule } from 'local-pkg'
 import type { Environment } from '../../types'
-import { KEYS } from './jsdom-keys'
+import { createProcessObject } from './utils'
 
 export default <Environment>({
   name: 'happy-dom',
-  async setup(global) {
+  async setup() {
     const { Window } = await importModule('happy-dom') as typeof import('happy-dom')
     const win: any = new Window()
 
-    const keys = new Set(KEYS.concat(Object.getOwnPropertyNames(win))
-      .filter(k => !k.startsWith('_') && !(k in global)))
+    const context = vm.createContext(win)
 
-    const overrideObject = new Map<string, any>()
-    for (const key of keys) {
-      Object.defineProperty(global, key, {
-        get() {
-          if (overrideObject.has(key))
-            return overrideObject.get(key)
-          return win[key]
-        },
-        set(v) {
-          overrideObject.set(key, v)
-        },
-        configurable: true,
-      })
-    }
+    win.global = win
+    win.process = createProcessObject()
 
     return {
-      teardown(global) {
+      get context() {
+        return context
+      },
+      teardown() {
         win.happyDOM.cancelAsync()
-        keys.forEach(key => delete global[key])
+        // keys.forEach(key => delete global[key])
       },
     }
   },

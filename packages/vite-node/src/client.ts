@@ -66,7 +66,7 @@ export class ViteNodeRunner {
 
     const { code: transformed, externalize } = await this.options.fetchModule(id)
     if (externalize) {
-      const mod = await this.interopedImport(externalize)
+      const mod = await this.interopedImport(fsPath, externalize)
       this.setCache(id, { exports: mod })
       return mod
     }
@@ -111,14 +111,23 @@ export class ViteNodeRunner {
       __dirname: dirname(__filename),
     })
 
-    const fn = vm.runInThisContext(`async (${Object.keys(context).join(',')})=>{{${transformed}\n}}`, {
-      filename: fsPath,
-      lineOffset: 0,
-    })
+    const code = `async (${Object.keys(context).join(',')})=>{{${transformed}\n}}`
+
+    const fn = this.runVmCode(fsPath, code)
 
     await fn(...Object.values(context))
 
     return exports
+  }
+
+  private runVmCode(filename: string, code: string) {
+    const script = new vm.Script(code, {
+      filename,
+      lineOffset: 0,
+    })
+    if (this.options.nodeContext)
+      return script.runInContext(this.options.nodeContext)
+    return script.runInThisContext()
   }
 
   prepareContext(context: Record<string, any>) {
@@ -147,7 +156,8 @@ export class ViteNodeRunner {
   /**
    * Import a module and interop it
    */
-  async interopedImport(path: string) {
+  async interopedImport(fsPath: string, path: string) {
+    // const mod = await this.runVmCode(fsPath, `(() => import('${path}'))()`)
     const mod = await import(path)
 
     if (this.shouldInterop(path, mod)) {

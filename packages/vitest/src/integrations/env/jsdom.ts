@@ -1,10 +1,11 @@
 import { importModule } from 'local-pkg'
 import type { Environment, JSDOMOptions } from '../../types'
-import { KEYS } from './jsdom-keys'
+import { createProcessObject } from './utils'
+// import { KEYS } from './jsdom-keys'
 
 export default <Environment>({
   name: 'jsdom',
-  async setup(global, { jsdom = {} }) {
+  async setup(ctx, { jsdom = {} }) {
     const {
       CookieJar,
       JSDOM,
@@ -31,7 +32,7 @@ export default <Environment>({
         resources: resources ?? (userAgent ? new ResourceLoader({ userAgent }) : undefined),
         runScripts,
         url,
-        virtualConsole: console && global.console ? new VirtualConsole().sendTo(global.console) : undefined,
+        virtualConsole: console && globalThis.console ? new VirtualConsole().sendTo(globalThis.console) : undefined,
         cookieJar: cookieJar ? new CookieJar() : undefined,
         includeNodeLocations,
         contentType,
@@ -40,27 +41,18 @@ export default <Environment>({
       },
     )
 
-    const keys = new Set(KEYS.concat(Object.getOwnPropertyNames(dom.window))
-      .filter(k => !k.startsWith('_') && !(k in global)))
+    const global = dom.window.document.defaultView!
 
-    const overrideObject = new Map<string, any>()
-    for (const key of keys) {
-      Object.defineProperty(global, key, {
-        get() {
-          if (overrideObject.has(key))
-            return overrideObject.get(key)
-          return dom.window[key]
-        },
-        set(v) {
-          overrideObject.set(key, v)
-        },
-        configurable: true,
-      })
-    }
+    global.global = global
+    global.process = createProcessObject()
 
     return {
-      teardown(global) {
-        keys.forEach(key => delete global[key])
+      get context() {
+        return dom.getInternalVMContext()
+      },
+      teardown() {
+        global.close()
+        // keys.forEach(key => delete global[key])
       },
     }
   },

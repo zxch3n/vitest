@@ -1,21 +1,40 @@
+import { promises as fs } from 'fs'
+import process from 'process'
 import { resolve } from 'pathe'
 import type { BirpcReturn } from 'birpc'
 import { createBirpc } from 'birpc'
-import type { ModuleCache, ResolvedConfig, Test, WorkerContext, WorkerRPC } from '../types'
+import type { BuiltinEnvironment, ModuleCache, ResolvedConfig, Test, WorkerContext, WorkerRPC } from '../types'
 import { distDir } from '../constants'
 import { executeInViteNode } from '../node/execute'
+import * as t from '../integrations/env'
 import { rpc } from './rpc'
+// import { withEnv } from './setup'
 
-let _viteNode: {
-  run: (files: string[], config: ResolvedConfig) => Promise<void>
-  collect: (files: string[], config: ResolvedConfig) => Promise<void>
+export async function withEnv(
+  name: ResolvedConfig['environment'],
+  options: ResolvedConfig['environmentOptions'],
+  fn: (ctx: { context: any }) => Promise<void>,
+) {
+  const context = { context: globalThis }
+  const env = await t.environments[name].setup(context, options)
+  try {
+    await fn(env.context)
+  }
+  finally {
+    await env.teardown(env.context)
+  }
 }
+
+// let _viteNode: {
+//   run: (file: string, config: ResolvedConfig) => Promise<void>
+//   collect: (file: string, config: ResolvedConfig) => Promise<void>
+// }
 const moduleCache: Map<string, ModuleCache> = new Map()
 const mockMap = {}
 
-async function startViteNode(ctx: WorkerContext) {
-  if (_viteNode)
-    return _viteNode
+async function startViteNode(ctx: WorkerContext, nodeContext: any) {
+  // if (_viteNode)
+  //   return _viteNode
 
   const processExit = process.exit
 
@@ -42,14 +61,13 @@ async function startViteNode(ctx: WorkerContext) {
     },
     moduleCache,
     mockMap,
+    nodeContext,
     interopDefault: config.deps.interopDefault ?? true,
     root: config.root,
     base: config.base,
   }))[0]
 
-  _viteNode = { run, collect }
-
-  return _viteNode
+  return { run, collect }
 }
 
 function init(ctx: WorkerContext) {
@@ -80,15 +98,30 @@ function init(ctx: WorkerContext) {
 }
 
 export async function collect(ctx: WorkerContext) {
-  init(ctx)
-  const { collect } = await startViteNode(ctx)
-  return collect(ctx.files, ctx.config)
+  // eslint-disable-next-line no-console
+  console.log('shold never be called', ctx.files)
+  // init(ctx)
+  // await Promise.all(ctx.files.map(async(file) => {
+  // const { collect } = await startViteNode(ctx)
+  // return collect(file, ctx.config)
+  // }))
 }
 
 export async function run(ctx: WorkerContext) {
   init(ctx)
-  const { run } = await startViteNode(ctx)
-  return run(ctx.files, ctx.config)
+  await Promise.all(ctx.files.map(async(file) => {
+    const code = await fs.readFile(file, 'utf-8')
+
+    const env = code.match(/@(?:vitest|jest)-environment\s+?([\w-]+)\b/)?.[1] || ctx.config.environment || 'node'
+
+    if (!['node', 'jsdom', 'happy-dom'].includes(env))
+      throw new Error(`Unsupported environment: ${env}`)
+
+    await withEnv(env as BuiltinEnvironment, ctx.config.environmentOptions || {}, async(context) => {
+      const { run } = await startViteNode(ctx, context)
+      return run(file, ctx.config)
+    })
+  }))
 }
 
 declare global {

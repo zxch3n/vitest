@@ -1,6 +1,6 @@
 import { Console } from 'console'
 import { Writable } from 'stream'
-import { environments } from '../integrations/env'
+import process from 'process'
 import { setupChai } from '../integrations/chai/setup'
 import type { ResolvedConfig } from '../types'
 import { toArray } from '../utils'
@@ -49,20 +49,6 @@ export function setupConsoleLogSpy() {
     colorMode: true,
     groupIndentation: 2,
   })
-}
-
-export async function withEnv(
-  name: ResolvedConfig['environment'],
-  options: ResolvedConfig['environmentOptions'],
-  fn: () => Promise<void>,
-) {
-  const env = await environments[name].setup(globalThis, options)
-  try {
-    await fn()
-  }
-  finally {
-    await env.teardown(globalThis)
-  }
 }
 
 export async function runSetupFiles(config: ResolvedConfig) {

@@ -1,4 +1,5 @@
 import { performance } from 'perf_hooks'
+import process from 'process'
 import type { HookListener, ResolvedConfig, Suite, SuiteHooks, Task, TaskResult, Test } from '../types'
 import { vi } from '../integrations/vi'
 import { getSnapshotClient } from '../integrations/snapshot/chai'

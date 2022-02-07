@@ -29,12 +29,13 @@ export interface ModuleCache {
 }
 
 export interface EnvironmentReturn {
+  context: any
   teardown: (global: any) => Awaitable<void>
 }
 
 export interface Environment {
   name: string
-  setup(global: any, options: Record<string, any>): Awaitable<EnvironmentReturn>
+  setup(global: { context: any }, options: Record<string, any>): Awaitable<EnvironmentReturn>
 }
 
 export interface UserConsoleLog {

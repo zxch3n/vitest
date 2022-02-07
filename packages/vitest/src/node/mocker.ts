@@ -1,4 +1,5 @@
 import { existsSync, readdirSync } from 'fs'
+import process from 'process'
 import { isNodeBuiltin } from 'mlly'
 import { basename, dirname, join, resolve } from 'pathe'
 import type { ModuleCache } from 'vite-node'

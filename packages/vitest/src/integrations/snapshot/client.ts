@@ -1,3 +1,4 @@
+import process from 'process'
 import path from 'pathe'
 import { expect } from 'chai'
 import type { SnapshotResult, Test } from '../../types'
