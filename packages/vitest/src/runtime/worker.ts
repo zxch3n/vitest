@@ -7,7 +7,6 @@ import { rpc } from './rpc'
 
 let _viteNode: {
   run: (files: string[], config: ResolvedConfig) => Promise<void>
-  collect: (files: string[], config: ResolvedConfig) => Promise<void>
 }
 let __vitest_worker__: WorkerGlobalState
 const moduleCache: Map<string, ModuleCache> = new Map()
@@ -30,7 +29,7 @@ async function startViteNode(ctx: WorkerContext) {
 
   const { config } = ctx
 
-  const { run, collect } = (await executeInViteNode({
+  const { run } = (await executeInViteNode({
     files: [
       resolve(distDir, 'entry.js'),
     ],
@@ -47,7 +46,7 @@ async function startViteNode(ctx: WorkerContext) {
     base: config.base,
   }))[0]
 
-  _viteNode = { run, collect }
+  _viteNode = { run }
 
   return _viteNode
 }
@@ -78,12 +77,6 @@ function init(ctx: WorkerContext) {
   if (ctx.invalidates)
     ctx.invalidates.forEach(i => moduleCache.delete(i))
   ctx.files.forEach(i => moduleCache.delete(i))
-}
-
-export async function collect(ctx: WorkerContext) {
-  init(ctx)
-  const { collect } = await startViteNode(ctx)
-  return collect(ctx.files, ctx.config)
 }
 
 export async function run(ctx: WorkerContext) {
