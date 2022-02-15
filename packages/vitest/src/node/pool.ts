@@ -1,5 +1,6 @@
 import { MessageChannel } from 'worker_threads'
 import { pathToFileURL } from 'url'
+import { cpus } from 'os'
 import { resolve } from 'pathe'
 import type { Options as TinypoolOptions } from 'tinypool'
 import { Tinypool } from 'tinypool'
@@ -13,7 +14,6 @@ export type RunWithFiles = (files: string[], invalidates?: string[]) => Promise<
 
 export interface WorkerPool {
   runTests: RunWithFiles
-  collectTests: RunWithFiles
   close: () => Promise<void>
 }
 
@@ -27,7 +27,7 @@ export function createPool(ctx: Vitest): WorkerPool {
 const workerPath = pathToFileURL(resolve(distDir, './worker.js')).href
 
 export function createFakePool(ctx: Vitest): WorkerPool {
-  const runWithFiles = (name: 'run' | 'collect'): RunWithFiles => {
+  const runWithFiles = (name: 'run'): RunWithFiles => {
     return async(files, invalidates) => {
       const worker = await import(workerPath)
 
@@ -49,23 +49,25 @@ export function createFakePool(ctx: Vitest): WorkerPool {
 
   return {
     runTests: runWithFiles('run'),
-    collectTests: runWithFiles('collect'),
     close: async() => {},
   }
 }
 
 export function createWorkerPool(ctx: Vitest): WorkerPool {
+  const threadsCount = ctx.config.watch
+    ? Math.max(cpus().length / 2, 1)
+    : Math.max(cpus().length - 1, 1)
+
   const options: TinypoolOptions = {
     filename: workerPath,
     // Disable this for now, for WebContainer capability
     // https://github.com/vitest-dev/vitest/issues/93
     // In future we could conditionally enable it based on the env
     useAtomics: false,
+
+    maxThreads: ctx.config.maxThreads ?? threadsCount,
+    minThreads: ctx.config.minThreads ?? threadsCount,
   }
-  if (ctx.config.maxThreads != null)
-    options.maxThreads = ctx.config.maxThreads
-  if (ctx.config.minThreads != null)
-    options.minThreads = ctx.config.minThreads
   if (ctx.config.isolate) {
     options.isolateWorkers = true
     options.concurrentTasksPerWorker = 1
@@ -94,7 +96,6 @@ export function createWorkerPool(ctx: Vitest): WorkerPool {
 
   return {
     runTests: runWithFiles('run'),
-    collectTests: runWithFiles('collect'),
     close: async() => {}, // TODO: not sure why this will cause Node crash: pool.destroy(),
   }
 }

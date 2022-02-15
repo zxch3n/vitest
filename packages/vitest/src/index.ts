@@ -1,13 +1,11 @@
-import type {
-  Plugin as PrettyFormatPlugin,
-} from 'pretty-format'
+import type { UserConfig } from 'vite'
+import type { Plugin as PrettyFormatPlugin } from 'pretty-format'
 import type { Any, Anything } from './integrations/chai/jest-asymmetric-matchers'
 import type { MatcherState, MatchersObject } from './integrations/chai/types'
 import type { Constructable, InlineConfig } from './types'
 
-type VitestInlineConfig = InlineConfig
-
 export { suite, test, describe, it } from './runtime/suite'
+
 export * from './runtime/hooks'
 export * from './integrations/chai'
 export * from './integrations/jest-mock'
@@ -16,6 +14,10 @@ export * from './integrations/vi'
 export * from './types'
 export * from './api/types'
 
+export { configDefaults } from './defaults'
+
+type VitestInlineConfig = InlineConfig
+
 declare module 'vite' {
   interface UserConfig {
     /**
@@ -23,6 +25,10 @@ declare module 'vite' {
      */
     test?: VitestInlineConfig
   }
+}
+
+export function defineConfig(config: UserConfig) {
+  return config
 }
 
 interface AsymmetricMatchersContaining {
@@ -83,10 +89,10 @@ declare global {
       toContainEqual<E>(item: E): void
       toBeTruthy(): void
       toBeFalsy(): void
-      toBeGreaterThan(num: number): void
-      toBeGreaterThanOrEqual(num: number): void
-      toBeLessThan(num: number): void
-      toBeLessThanOrEqual(num: number): void
+      toBeGreaterThan(num: number | bigint): void
+      toBeGreaterThanOrEqual(num: number | bigint): void
+      toBeLessThan(num: number | bigint): void
+      toBeLessThanOrEqual(num: number | bigint): void
       toBeNaN(): void
       toBeUndefined(): void
       toBeNull(): void
@@ -122,15 +128,15 @@ declare global {
 
     // eslint-disable-next-line @typescript-eslint/prefer-ts-expect-error
     // @ts-ignore build namspace conflict
-    type VitestAssertion<A> = {
+    type VitestAssertion<A, T> = {
       [K in keyof A]: A[K] extends Chai.Assertion
-        ? Assertion<any>
+        ? Assertion<T>
         : A[K] extends (...args: any[]) => any
           ? A[K] // not converting function since they may contain overload
-          : VitestAssertion<A[K]>
-    }
+          : VitestAssertion<A[K], T>
+    } & ((type: string, message?: string) => Assertion)
 
-    interface Assertion<T = any> extends VitestAssertion<Chai.Assertion>, JestAssertion<T> {
+    interface Assertion<T = any> extends VitestAssertion<Chai.Assertion, T>, JestAssertion<T> {
       resolves: Promisify<Assertion<T>>
       rejects: Promisify<Assertion<T>>
     }

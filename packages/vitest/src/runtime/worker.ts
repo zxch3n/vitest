@@ -1,13 +1,13 @@
 import { promises as fs } from 'fs'
 import process from 'process'
 import { resolve } from 'pathe'
-import type { BirpcReturn } from 'birpc'
 import { createBirpc } from 'birpc'
 import type { BuiltinEnvironment, ModuleCache, ResolvedConfig, Test, WorkerContext, WorkerRPC } from '../types'
 import { distDir } from '../constants'
 import { executeInViteNode } from '../node/execute'
 import * as t from '../integrations/env'
 import { rpc } from './rpc'
+
 // import { withEnv } from './setup'
 
 export async function withEnv(
@@ -29,6 +29,12 @@ export async function withEnv(
 //   run: (file: string, config: ResolvedConfig) => Promise<void>
 //   collect: (file: string, config: ResolvedConfig) => Promise<void>
 // }
+
+let _viteNode: {
+  run: (files: string[], config: ResolvedConfig) => Promise<void>
+}
+let __vitest_worker__: WorkerGlobalState
+
 const moduleCache: Map<string, ModuleCache> = new Map()
 const mockMap = {}
 
@@ -49,7 +55,7 @@ async function startViteNode(ctx: WorkerContext, nodeContext: any) {
 
   const { config } = ctx
 
-  const { run, collect } = (await executeInViteNode({
+  const { run } = (await executeInViteNode({
     files: [
       resolve(distDir, 'entry.js'),
     ],
@@ -67,18 +73,19 @@ async function startViteNode(ctx: WorkerContext, nodeContext: any) {
     base: config.base,
   }))[0]
 
-  return { run, collect }
+  return { run }
 }
 
 function init(ctx: WorkerContext) {
-  if (process.__vitest_worker__ && ctx.config.threads && ctx.config.isolate)
-    throw new Error(`worker for ${ctx.files.join(',')} already initialized by ${process.__vitest_worker__.ctx.files.join(',')}. This is probably an internal bug of Vitest.`)
+  if (__vitest_worker__ && ctx.config.threads && ctx.config.isolate)
+    throw new Error(`worker for ${ctx.files.join(',')} already initialized by ${__vitest_worker__.ctx.files.join(',')}. This is probably an internal bug of Vitest.`)
 
   process.stdout.write('\0')
 
   const { config, port } = ctx
 
-  process.__vitest_worker__ = {
+  // @ts-expect-error I know what I am doing :P
+  globalThis.__vitest_worker__ = {
     ctx,
     moduleCache,
     config,
@@ -95,16 +102,6 @@ function init(ctx: WorkerContext) {
   if (ctx.invalidates)
     ctx.invalidates.forEach(i => moduleCache.delete(i))
   ctx.files.forEach(i => moduleCache.delete(i))
-}
-
-export async function collect(ctx: WorkerContext) {
-  // eslint-disable-next-line no-console
-  console.log('shold never be called', ctx.files)
-  // init(ctx)
-  // await Promise.all(ctx.files.map(async(file) => {
-  // const { collect } = await startViteNode(ctx)
-  // return collect(file, ctx.config)
-  // }))
 }
 
 export async function run(ctx: WorkerContext) {
@@ -125,16 +122,5 @@ export async function run(ctx: WorkerContext) {
 }
 
 declare global {
-  namespace NodeJS {
-    interface Process {
-      __vitest_worker__: {
-        ctx: WorkerContext
-        config: ResolvedConfig
-        rpc: BirpcReturn<WorkerRPC>
-        current?: Test
-        filepath?: string
-        moduleCache: Map<string, ModuleCache>
-      }
-    }
-  }
+  let __vitest_worker__: import('vitest').WorkerGlobalState
 }
