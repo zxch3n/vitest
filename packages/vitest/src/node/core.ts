@@ -565,7 +565,7 @@ export class Vitest {
       filters = filters.map(f => toNamespacedPath(f))
 
     if (filters.length)
-      testFiles = testFiles.filter(i => filters.some(f => i.includes(f)))
+      testFiles = testFiles.filter(i => filters.some(f => i.toLowerCase().includes(f.toLowerCase())))
 
     if (includeSource) {
       let files = await fg(includeSource, globOptions)
